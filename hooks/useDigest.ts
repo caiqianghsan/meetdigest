@@ -1,10 +1,12 @@
 'use client';
 
 import { useDigestStore } from '@/store/digestStore';
+import { useHistoryStore } from '@/store/historyStore';
 import type { StreamEvent, DigestResult } from '@/types';
 
 export function useDigest() {
   const store = useDigestStore();
+  const historyAdd = useHistoryStore((s) => s.add);
 
   const startDigest = async () => {
     if (!store.inputText.trim()) return;
@@ -83,6 +85,10 @@ export function useDigest() {
             case 'done': {
               store.setStreaming(false);
               store.setProgress('done', '提炼完成');
+              const finalResult = useDigestStore.getState().result;
+              if (finalResult) {
+                historyAdd(useDigestStore.getState().inputText, finalResult);
+              }
               break;
             }
             case 'error': {

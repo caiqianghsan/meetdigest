@@ -7,14 +7,16 @@ import { InsightsTab } from './InsightsTab';
 import { MarkdownPreviewTab } from './MarkdownPreviewTab';
 import { CopyButton } from '@/components/export/CopyButton';
 import { DownloadButton } from '@/components/export/DownloadButton';
+import { ChatTab } from './ChatTab';
 import { buildMarkdown } from '@/lib/utils/markdownBuilder';
 import type { ActiveTab } from '@/types';
 
-const TABS: { id: ActiveTab; label: string }[] = [
+const STATIC_TABS: { id: ActiveTab; label: string }[] = [
   { id: 'summary', label: '摘要' },
   { id: 'actions', label: 'Action Items' },
   { id: 'insights', label: '关键洞察' },
   { id: 'preview', label: 'Markdown' },
+  { id: 'chat', label: '追问' },
 ];
 
 function EmptyState() {
@@ -51,11 +53,14 @@ export function OutputPanel() {
   const { result, isStreaming, activeTab, setActiveTab } = useDigestStore();
   const hasResult = !!result;
 
+  const TABS = hasResult ? STATIC_TABS : STATIC_TABS.filter((t) => t.id !== 'chat');
+
   const tabReadiness: Record<ActiveTab, boolean> = {
     summary: !!result?.summary,
     actions: !!result?.actionItems,
     insights: !!result?.insights,
     preview: hasResult,
+    chat: hasResult,
   };
 
   return (
@@ -103,6 +108,7 @@ export function OutputPanel() {
             {activeTab === 'actions' && <ActionItemsTab />}
             {activeTab === 'insights' && <InsightsTab />}
             {activeTab === 'preview' && <MarkdownPreviewTab />}
+            {activeTab === 'chat' && <ChatTab />}
           </>
         )}
       </div>

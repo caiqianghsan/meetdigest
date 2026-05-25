@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/claude/prompts';
 import { MAX_CHARS } from '@/lib/utils/constants';
 import type { StreamEvent } from '@/types';
+import { getSession } from '@/lib/auth/session';
 
 const client = new OpenAI({
   apiKey: process.env.ZHIPU_API_KEY,
@@ -15,6 +16,11 @@ function sseData(event: StreamEvent): string {
 }
 
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return new Response(JSON.stringify({ message: '请先登录' }), { status: 401 });
+  }
+
   let content: string;
   try {
     const body = await request.json();

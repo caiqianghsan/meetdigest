@@ -4,7 +4,13 @@ export type InsightType = 'decisions' | 'risks' | 'opportunities' | 'openQuestio
 
 export type Priority = 'high' | 'medium' | 'low';
 
-export type ActiveTab = 'summary' | 'actions' | 'insights' | 'preview';
+export type ActiveTab = 'summary' | 'actions' | 'insights' | 'preview' | 'chat';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 export interface ActionItem {
   id: number;
@@ -36,6 +42,14 @@ export interface DigestResult {
   actionItems: ActionItem[];
   insights: InsightsData;
   generatedAt: string;
+}
+
+export interface HistoryRecord {
+  id: string;
+  topic: string;
+  generatedAt: string;
+  inputText: string;
+  result: DigestResult;
 }
 
 export type StreamEventType = 'progress' | 'summary' | 'actionItems' | 'insights' | 'done' | 'error';

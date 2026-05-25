@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { DigestResult, ActionItem, ActiveTab, StreamPhase } from '@/types';
+import type { DigestResult, ActionItem, ActiveTab, StreamPhase, ChatMessage } from '@/types';
 
 interface DigestStore {
   // Input
@@ -20,6 +20,10 @@ interface DigestStore {
   // Error
   error: string | null;
 
+  // Chat
+  chatMessages: ChatMessage[];
+  isChatting: boolean;
+
   // Actions
   setInputText: (text: string) => void;
   setUploadedFileName: (name: string | null) => void;
@@ -34,6 +38,10 @@ interface DigestStore {
   deleteActionItem: (id: number) => void;
   addActionItem: () => void;
   setError: (error: string | null) => void;
+  setChatMessages: (messages: ChatMessage[]) => void;
+  appendChatMessage: (message: ChatMessage) => void;
+  updateLastAssistantMessage: (content: string) => void;
+  setIsChatting: (v: boolean) => void;
   reset: () => void;
 }
 
@@ -46,6 +54,8 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
   result: null,
   activeTab: 'summary',
   error: null,
+  chatMessages: [],
+  isChatting: false,
 
   setInputText: (text) => set({ inputText: text }),
   setUploadedFileName: (name) => set({ uploadedFileName: name }),
@@ -91,6 +101,19 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
       };
     }),
   setError: (error) => set({ error }),
+  setChatMessages: (messages) => set({ chatMessages: messages }),
+  appendChatMessage: (message) =>
+    set((s) => ({ chatMessages: [...s.chatMessages, message] })),
+  updateLastAssistantMessage: (content) =>
+    set((s) => {
+      const messages = [...s.chatMessages];
+      const lastIdx = messages.length - 1;
+      if (lastIdx >= 0 && messages[lastIdx].role === 'assistant') {
+        messages[lastIdx] = { ...messages[lastIdx], content };
+      }
+      return { chatMessages: messages };
+    }),
+  setIsChatting: (v) => set({ isChatting: v }),
   reset: () =>
     set({
       isStreaming: false,
@@ -99,5 +122,7 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
       result: null,
       error: null,
       activeTab: 'summary',
+      chatMessages: [],
+      isChatting: false,
     }),
 }));

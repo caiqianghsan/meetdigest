@@ -1,7 +1,11 @@
 import { InputPanel } from "@/components/input/InputPanel";
 import { OutputPanel } from "@/components/output/OutputPanel";
+import { HistoryPanel } from "@/components/history/HistoryPanel";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { getSession } from "@/lib/auth/session";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getSession();
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -14,15 +18,19 @@ export default function Home() {
           </div>
           <span className="font-semibold text-gray-900 text-base">MeetDigest</span>
           <span className="text-xs text-gray-400 ml-1">智能会议内容提炼助手</span>
+          {session && <UserMenu username={session.username} />}
         </div>
       </header>
 
       {/* Main */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6">
-          {/* Left: Input */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <InputPanel />
+          {/* Left: History + Input */}
+          <div className="flex flex-col gap-4">
+            <HistoryPanel />
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <InputPanel />
+            </div>
           </div>
 
           {/* Right: Output */}

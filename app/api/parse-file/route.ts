@@ -2,8 +2,14 @@ export const runtime = 'nodejs';
 
 import { MAX_FILE_SIZE, SUPPORTED_EXTENSIONS } from '@/lib/utils/constants';
 import { cleanText } from '@/lib/parsers/textCleaner';
+import { getSession } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: 'unauthorized', message: '请先登录' }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
