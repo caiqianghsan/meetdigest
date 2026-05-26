@@ -1,15 +1,23 @@
 'use client';
 
-import { useRef, useState, DragEvent, ChangeEvent } from 'react';
+import { useRef, useState, useEffect, DragEvent, ChangeEvent } from 'react';
 import { useDigestStore } from '@/store/digestStore';
 import { useTranscriber } from '@/hooks/useTranscriber';
-import { useTranscriberApi } from '@/hooks/useTranscriberApi';
+import { useTranscriberApi, type ApiProvider } from '@/hooks/useTranscriberApi';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.webm', '.ogg', '.flac'];
-const MAX_AUDIO_SIZE = 500 * 1024 * 1024;
-const MAX_API_SIZE = 25 * 1024 * 1024;
+const MAX_SIZE: Record<TranscribeMode, number> = {
+  local: 500 * 1024 * 1024,
+  openai: 25 * 1024 * 1024,
+  sensevoice: 200 * 1024 * 1024,
+};
 
-type TranscribeMode = 'local' | 'api';
+type TranscribeMode = 'local' | 'openai' | 'sensevoice';
+
+interface Availability {
+  openai: boolean;
+  sensevoice: boolean;
+}
 
 export function AudioUploadZone() {
   const { setInputText, setUploadedFileName, isStreaming } = useDigestStore();
@@ -17,29 +25,31 @@ export function AudioUploadZone() {
   const api = useTranscriberApi();
 
   const [mode, setMode] = useState<TranscribeMode>('local');
-  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
+  const [availability, setAvailability] = useState<Availability | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const switchMode = async (next: TranscribeMode) => {
-    setMode(next);
-    if (next === 'api' && apiAvailable === null) {
-      const res = await fetch('/api/transcribe').catch(() => null);
-      const data = res ? await res.json().catch(() => null) : null;
-      setApiAvailable(data?.available ?? false);
-    }
-  };
+  useEffect(() => {
+    fetch('/api/transcribe')
+      .then((r) => r.json())
+      .then((d) => setAvailability(d))
+      .catch(() => setAvailability({ openai: false, sensevoice: false }));
+  }, []);
 
   const status = mode === 'local' ? local.status : api.status;
   const message = mode === 'local' ? local.message : api.message;
   const modelProgress = mode === 'local' ? local.modelProgress : 0;
 
-  const isActive = status === 'loading' || status === 'transcribing' || status === 'uploading';
+  const isActive = ['loading', 'transcribing', 'uploading'].includes(status);
   const isDone = status === 'done';
   const isError = status === 'error';
   const isDisabled = isStreaming || isActive;
+
+  const apiUnavailable =
+    (mode === 'openai' && availability !== null && !availability.openai) ||
+    (mode === 'sensevoice' && availability !== null && !availability.sensevoice);
 
   const processFile = async (file: File) => {
     setErrorMsg(null);
@@ -48,9 +58,9 @@ export function AudioUploadZone() {
       setErrorMsg('请上传 MP3 / WAV / M4A / WebM / OGG / FLAC 格式的音频文件');
       return;
     }
-    const sizeLimit = mode === 'api' ? MAX_API_SIZE : MAX_AUDIO_SIZE;
-    if (file.size > sizeLimit) {
-      setErrorMsg(mode === 'api' ? '文件超过 25MB，请压缩后重试' : '文件超过 500MB 限制');
+    if (file.size > MAX_SIZE[mode]) {
+      const limit = mode === 'openai' ? '25MB' : mode === 'sensevoice' ? '200MB' : '500MB';
+      setErrorMsg(`文件超过 ${limit} 限制`);
       return;
     }
     setFileName(file.name);
@@ -61,7 +71,7 @@ export function AudioUploadZone() {
     if (mode === 'local') {
       local.transcribe(file, onComplete);
     } else {
-      await api.transcribe(file, onComplete);
+      await api.transcribe(file, mode as ApiProvider, onComplete);
     }
   };
 
@@ -80,44 +90,33 @@ export function AudioUploadZone() {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Header with mode toggle */}
+      {/* Header with mode tabs */}
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">或上传音频</label>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => switchMode('local')}
-            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
-              mode === 'local'
-                ? 'bg-white text-gray-800 shadow-sm font-medium'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            本地转录
-          </button>
-          <button
-            onClick={() => switchMode('api')}
-            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
-              mode === 'api'
-                ? 'bg-white text-gray-800 shadow-sm font-medium'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Whisper API
-          </button>
+        <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+          {([
+            { id: 'local', label: '本地' },
+            { id: 'openai', label: 'Whisper API' },
+            { id: 'sensevoice', label: 'SenseVoice' },
+          ] as { id: TranscribeMode; label: string }[]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMode(tab.id)}
+              className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+                mode === tab.id
+                  ? 'bg-white text-gray-800 shadow-sm font-medium'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Upload zone or API key notice */}
-      {mode === 'api' && apiAvailable === false ? (
-        <div className="flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 px-4 text-center">
-          <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-xs text-amber-700">
-            需要在 <code className="bg-amber-100 px-1 rounded">.env.local</code> 中配置{' '}
-            <code className="bg-amber-100 px-1 rounded">OPENAI_API_KEY</code>，重启开发服务器后生效
-          </p>
-        </div>
+      {/* Upload zone or unavailable notice */}
+      {apiUnavailable ? (
+        <UnavailableNotice mode={mode} />
       ) : (
         <div
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -150,17 +149,46 @@ export function AudioUploadZone() {
 
       {errorMsg && <p className="text-xs text-red-500">{errorMsg}</p>}
 
-      {/* Mode description */}
       <p className="text-xs text-gray-400">
-        {mode === 'local'
-          ? '本地转录：隐私安全，无需 API Key，首次下载模型约 460MB'
-          : 'Whisper API：质量更高，需要 OPENAI_API_KEY，文件限 25MB'}
+        {mode === 'local' && '本地转录：隐私安全，首次下载模型约 460MB'}
+        {mode === 'openai' && 'Whisper API：需要 OPENAI_API_KEY，文件限 25MB'}
+        {mode === 'sensevoice' && 'SenseVoice：需本地运行服务（SENSEVOICE_URL），中文质量最佳'}
       </p>
     </div>
   );
 }
 
+function UnavailableNotice({ mode }: { mode: TranscribeMode }) {
+  const config = {
+    openai: {
+      env: 'OPENAI_API_KEY',
+      hint: '在 .env.local 中配置后重启服务',
+    },
+    sensevoice: {
+      env: 'SENSEVOICE_URL',
+      hint: '先启动 SenseVoice 本地服务，再在 .env.local 配置地址',
+    },
+  }[mode as 'openai' | 'sensevoice'];
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 px-4 text-center">
+      <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p className="text-xs text-amber-700">
+        需配置 <code className="bg-amber-100 px-1 rounded">{config.env}</code>
+      </p>
+      <p className="text-xs text-amber-600">{config.hint}</p>
+    </div>
+  );
+}
+
 function IdleState({ mode }: { mode: TranscribeMode }) {
+  const hint = {
+    local: 'MP3 / WAV / M4A，本地转录',
+    openai: 'MP3 / WAV / M4A，最大 25MB',
+    sensevoice: 'MP3 / WAV / M4A，最大 200MB',
+  }[mode];
   return (
     <>
       <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -169,9 +197,7 @@ function IdleState({ mode }: { mode: TranscribeMode }) {
       <span className="text-xs text-gray-500">
         拖拽音频到此处，或<span className="text-violet-500">点击上传</span>
       </span>
-      <span className="text-xs text-gray-400">
-        {mode === 'local' ? 'MP3 / WAV / M4A（本地转录）' : 'MP3 / WAV / M4A，最大 25MB（Whisper API）'}
-      </span>
+      <span className="text-xs text-gray-400">{hint}</span>
     </>
   );
 }
