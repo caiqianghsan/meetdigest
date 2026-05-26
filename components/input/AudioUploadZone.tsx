@@ -17,10 +17,20 @@ export function AudioUploadZone() {
   const api = useTranscriberApi();
 
   const [mode, setMode] = useState<TranscribeMode>('local');
+  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const switchMode = async (next: TranscribeMode) => {
+    setMode(next);
+    if (next === 'api' && apiAvailable === null) {
+      const res = await fetch('/api/transcribe').catch(() => null);
+      const data = res ? await res.json().catch(() => null) : null;
+      setApiAvailable(data?.available ?? false);
+    }
+  };
 
   const status = mode === 'local' ? local.status : api.status;
   const message = mode === 'local' ? local.message : api.message;
@@ -75,7 +85,7 @@ export function AudioUploadZone() {
         <label className="text-sm font-medium text-gray-700">或上传音频</label>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
           <button
-            onClick={() => setMode('local')}
+            onClick={() => switchMode('local')}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               mode === 'local'
                 ? 'bg-white text-gray-800 shadow-sm font-medium'
@@ -85,7 +95,7 @@ export function AudioUploadZone() {
             本地转录
           </button>
           <button
-            onClick={() => setMode('api')}
+            onClick={() => switchMode('api')}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               mode === 'api'
                 ? 'bg-white text-gray-800 shadow-sm font-medium'
@@ -97,34 +107,46 @@ export function AudioUploadZone() {
         </div>
       </div>
 
-      {/* Upload zone */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={onDrop}
-        onClick={() => !isDisabled && inputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed transition-colors
-          ${isDragging ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'}
-          ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        {isActive ? (
-          <ActiveState status={status} message={message} modelProgress={modelProgress} />
-        ) : isDone ? (
-          <DoneState fileName={fileName} />
-        ) : isError ? (
-          <ErrorState message={message} />
-        ) : (
-          <IdleState mode={mode} />
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept=".mp3,.wav,.m4a,.webm,.ogg,.flac"
-          onChange={onChange}
-          disabled={isDisabled}
-        />
-      </div>
+      {/* Upload zone or API key notice */}
+      {mode === 'api' && apiAvailable === false ? (
+        <div className="flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 px-4 text-center">
+          <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-amber-700">
+            需要在 <code className="bg-amber-100 px-1 rounded">.env.local</code> 中配置{' '}
+            <code className="bg-amber-100 px-1 rounded">OPENAI_API_KEY</code>，重启开发服务器后生效
+          </p>
+        </div>
+      ) : (
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={onDrop}
+          onClick={() => !isDisabled && inputRef.current?.click()}
+          className={`relative flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed transition-colors
+            ${isDragging ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'}
+            ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          {isActive ? (
+            <ActiveState status={status} message={message} modelProgress={modelProgress} />
+          ) : isDone ? (
+            <DoneState fileName={fileName} />
+          ) : isError ? (
+            <ErrorState message={message} />
+          ) : (
+            <IdleState mode={mode} />
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            className="hidden"
+            accept=".mp3,.wav,.m4a,.webm,.ogg,.flac"
+            onChange={onChange}
+            disabled={isDisabled}
+          />
+        </div>
+      )}
 
       {errorMsg && <p className="text-xs text-red-500">{errorMsg}</p>}
 

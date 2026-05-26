@@ -3,6 +3,11 @@ export const runtime = 'nodejs';
 import OpenAI from 'openai';
 import { getSession } from '@/lib/auth/session';
 
+export async function GET() {
+  const available = !!process.env.OPENAI_API_KEY;
+  return Response.json({ available });
+}
+
 const MAX_SIZE = 25 * 1024 * 1024; // 25MB — OpenAI Whisper hard limit
 
 export async function POST(request: Request) {
