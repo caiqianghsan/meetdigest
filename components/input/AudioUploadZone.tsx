@@ -3,37 +3,56 @@
 import { useRef, useState, DragEvent, ChangeEvent } from 'react';
 import { useDigestStore } from '@/store/digestStore';
 import { useTranscriber } from '@/hooks/useTranscriber';
+import { useTranscriberApi } from '@/hooks/useTranscriberApi';
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.webm', '.ogg', '.flac'];
 const MAX_AUDIO_SIZE = 500 * 1024 * 1024;
+const MAX_API_SIZE = 25 * 1024 * 1024;
+
+type TranscribeMode = 'local' | 'api';
 
 export function AudioUploadZone() {
   const { setInputText, setUploadedFileName, isStreaming } = useDigestStore();
-  const { transcribe, status, message, modelProgress } = useTranscriber();
+  const local = useTranscriber();
+  const api = useTranscriberApi();
+
+  const [mode, setMode] = useState<TranscribeMode>('local');
   const [isDragging, setIsDragging] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isActive = status === 'loading' || status === 'transcribing';
+  const status = mode === 'local' ? local.status : api.status;
+  const message = mode === 'local' ? local.message : api.message;
+  const modelProgress = mode === 'local' ? local.modelProgress : 0;
+
+  const isActive = status === 'loading' || status === 'transcribing' || status === 'uploading';
+  const isDone = status === 'done';
+  const isError = status === 'error';
   const isDisabled = isStreaming || isActive;
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     setErrorMsg(null);
     const ext = AUDIO_EXTENSIONS.find((e) => file.name.toLowerCase().endsWith(e));
     if (!ext) {
       setErrorMsg('请上传 MP3 / WAV / M4A / WebM / OGG / FLAC 格式的音频文件');
       return;
     }
-    if (file.size > MAX_AUDIO_SIZE) {
-      setErrorMsg('文件超过 500MB 限制');
+    const sizeLimit = mode === 'api' ? MAX_API_SIZE : MAX_AUDIO_SIZE;
+    if (file.size > sizeLimit) {
+      setErrorMsg(mode === 'api' ? '文件超过 25MB，请压缩后重试' : '文件超过 500MB 限制');
       return;
     }
     setFileName(file.name);
-    transcribe(file, (text) => {
+    const onComplete = (text: string) => {
       setInputText(text);
       setUploadedFileName(file.name);
-    });
+    };
+    if (mode === 'local') {
+      local.transcribe(file, onComplete);
+    } else {
+      await api.transcribe(file, onComplete);
+    }
   };
 
   const onDrop = (e: DragEvent) => {
@@ -51,7 +70,34 @@ export function AudioUploadZone() {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-gray-700">或上传音频（本地转录）</label>
+      {/* Header with mode toggle */}
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-gray-700">或上传音频</label>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setMode('local')}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+              mode === 'local'
+                ? 'bg-white text-gray-800 shadow-sm font-medium'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            本地转录
+          </button>
+          <button
+            onClick={() => setMode('api')}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+              mode === 'api'
+                ? 'bg-white text-gray-800 shadow-sm font-medium'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Whisper API
+          </button>
+        </div>
+      </div>
+
+      {/* Upload zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
@@ -63,12 +109,12 @@ export function AudioUploadZone() {
       >
         {isActive ? (
           <ActiveState status={status} message={message} modelProgress={modelProgress} />
-        ) : status === 'done' ? (
+        ) : isDone ? (
           <DoneState fileName={fileName} />
-        ) : status === 'error' ? (
+        ) : isError ? (
           <ErrorState message={message} />
         ) : (
-          <IdleState />
+          <IdleState mode={mode} />
         )}
         <input
           ref={inputRef}
@@ -79,12 +125,20 @@ export function AudioUploadZone() {
           disabled={isDisabled}
         />
       </div>
+
       {errorMsg && <p className="text-xs text-red-500">{errorMsg}</p>}
+
+      {/* Mode description */}
+      <p className="text-xs text-gray-400">
+        {mode === 'local'
+          ? '本地转录：隐私安全，无需 API Key，首次下载模型约 460MB'
+          : 'Whisper API：质量更高，需要 OPENAI_API_KEY，文件限 25MB'}
+      </p>
     </div>
   );
 }
 
-function IdleState() {
+function IdleState({ mode }: { mode: TranscribeMode }) {
   return (
     <>
       <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -93,7 +147,9 @@ function IdleState() {
       <span className="text-xs text-gray-500">
         拖拽音频到此处，或<span className="text-violet-500">点击上传</span>
       </span>
-      <span className="text-xs text-gray-400">MP3 / WAV / M4A，首次需下载模型约 460MB</span>
+      <span className="text-xs text-gray-400">
+        {mode === 'local' ? 'MP3 / WAV / M4A（本地转录）' : 'MP3 / WAV / M4A，最大 25MB（Whisper API）'}
+      </span>
     </>
   );
 }
