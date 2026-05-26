@@ -34,7 +34,7 @@ interface DigestStore {
   updateSummary: (summary: DigestResult['summary']) => void;
   updateActionItems: (items: ActionItem[]) => void;
   updateInsights: (insights: DigestResult['insights']) => void;
-  updateActionItem: (id: number, field: keyof ActionItem, value: string) => void;
+  updateActionItem: (id: number, field: keyof ActionItem, value: string | boolean) => void;
   deleteActionItem: (id: number) => void;
   addActionItem: () => void;
   setError: (error: string | null) => void;
@@ -66,7 +66,11 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
   updateSummary: (summary) =>
     set((s) => ({ result: s.result ? { ...s.result, summary } : null })),
   updateActionItems: (items) =>
-    set((s) => ({ result: s.result ? { ...s.result, actionItems: items } : null })),
+    set((s) => ({
+      result: s.result
+        ? { ...s.result, actionItems: items.map((item) => Object.assign({ completed: false }, item)) }
+        : null,
+    })),
   updateInsights: (insights) =>
     set((s) => ({ result: s.result ? { ...s.result, insights } : null })),
   updateActionItem: (id, field, value) =>
@@ -80,6 +84,7 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
           }
         : null,
     })),
+
   deleteActionItem: (id) =>
     set((s) => ({
       result: s.result
@@ -95,7 +100,7 @@ export const useDigestStore = create<DigestStore>((set, get) => ({
           ...s.result,
           actionItems: [
             ...s.result.actionItems,
-            { id: newId, owner: '待定', task: '请填写任务描述', deadline: '-', priority: 'medium' },
+            { id: newId, completed: false, owner: '待定', task: '请填写任务描述', deadline: '-', priority: 'medium' },
           ],
         },
       };

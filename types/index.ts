@@ -14,6 +14,7 @@ export interface ChatMessage {
 
 export interface ActionItem {
   id: number;
+  completed: boolean;
   owner: string;
   task: string;
   deadline: string;

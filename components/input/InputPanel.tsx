@@ -2,6 +2,7 @@
 
 import { TextInputArea } from './TextInputArea';
 import { FileUploadZone } from './FileUploadZone';
+import { AudioUploadZone } from './AudioUploadZone';
 import { useDigestStore } from '@/store/digestStore';
 import { useDigest } from '@/hooks/useDigest';
 import { MAX_CHARS } from '@/lib/utils/constants';
@@ -24,6 +25,7 @@ export function InputPanel() {
     <div className="flex flex-col gap-5">
       <TextInputArea />
       <FileUploadZone />
+      <AudioUploadZone />
 
       {error && (
         <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">

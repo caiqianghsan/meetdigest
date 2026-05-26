@@ -81,15 +81,20 @@ function ActionItemRow({
   onDelete,
 }: {
   item: ActionItem;
-  onUpdate: (field: keyof ActionItem, value: string) => void;
+  onUpdate: (field: keyof ActionItem, value: string | boolean) => void;
   onDelete: () => void;
 }) {
   const cfg = PRIORITY_CONFIG[item.priority] ?? PRIORITY_CONFIG.medium;
 
   return (
-    <div className="group flex items-start gap-2 p-3 border border-gray-100 rounded-lg hover:border-gray-200 bg-white transition-colors">
+    <div className={`group flex items-start gap-2 p-3 border rounded-lg hover:border-gray-200 bg-white transition-colors ${item.completed ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
       <div className="flex-shrink-0 mt-0.5">
-        <input type="checkbox" className="w-4 h-4 rounded accent-[#1A3C5E] cursor-pointer" />
+        <input
+          type="checkbox"
+          checked={item.completed}
+          onChange={() => onUpdate('completed', !item.completed)}
+          className="w-4 h-4 rounded accent-[#1A3C5E] cursor-pointer"
+        />
       </div>
       <div className="flex-1 grid grid-cols-[auto_1fr_auto_auto] gap-2 items-start min-w-0">
         <input
@@ -101,7 +106,7 @@ function ActionItemRow({
         <input
           value={item.task}
           onChange={(e) => onUpdate('task', e.target.value)}
-          className="text-sm text-gray-700 bg-transparent border-none outline-none min-w-0 focus:bg-gray-50 rounded px-1"
+          className={`text-sm text-gray-700 bg-transparent border-none outline-none min-w-0 focus:bg-gray-50 rounded px-1 ${item.completed ? 'line-through text-gray-400' : ''}`}
           title="任务描述"
         />
         <input
